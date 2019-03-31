@@ -7,6 +7,8 @@ using System.Xml;
 using Microsoft.TeamFoundation.Client;
 using Microsoft.TeamFoundation.TestManagement.Client;
 using Microsoft.TeamFoundation.WorkItemTracking.Client;
+using HtmlAgilityPack;
+using System.Text;
 
 namespace TFS2TestRailXML
 {
@@ -27,7 +29,7 @@ namespace TFS2TestRailXML
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-
+            TbFileName.Text = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)+"\\TestRail Import.xml";
         }
 
         void BtnConnect_Click(object sender, RoutedEventArgs e)
@@ -59,7 +61,7 @@ namespace TFS2TestRailXML
         {
             var saveFileDialog1 = new System.Windows.Forms.SaveFileDialog
             {
-                InitialDirectory = Environment.SpecialFolder.MyDocuments.ToString(),
+                InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
                 Filter = Properties.Resources.MainWindow_BtnOpenFileDialog_Click,
                 FilterIndex = 1
             };
@@ -431,7 +433,6 @@ namespace TFS2TestRailXML
             {  
                 var workItemStore = new WorkItemStore(_tfs);
                 var workItem = workItemStore.GetWorkItem(testCase.WorkItem.WorkItemLinks[i].TargetId);
-                
                 if (workItem.Type.Name == "Product Backlog Item")
                 {
                     if (j < 1)
@@ -464,14 +465,14 @@ namespace TFS2TestRailXML
                     var sharedStep = sharedRef.FindSharedStep();
                     foreach (var testStep in sharedStep.Actions.Select(sharedAction => sharedAction as ITestStep))
                     {
-                        WriteTestSteps(i, testStep.Title.ToString(), testStep.ExpectedResult.ToString(), xmlDoc, stepsNode);
+                        WriteTestSteps(i, StripHtml(testStep.Title.ToString()), StripHtml(testStep.ExpectedResult.ToString()), xmlDoc, stepsNode);
                         i++;
                     }
                 }
                 else
                 {
                     var testStep = action as ITestStep;
-                    WriteTestSteps(i, testStep.Title.ToString(), testStep.ExpectedResult.ToString(), xmlDoc, stepsNode);
+                    WriteTestSteps(i, StripHtml(testStep.Title.ToString()), StripHtml(testStep.ExpectedResult.ToString()), xmlDoc, stepsNode);
                     i++;
                 }
             } //end of foreach test action
@@ -492,5 +493,26 @@ namespace TFS2TestRailXML
             expectedNode.InnerText = expectedResult;
             stepNode.AppendChild(expectedNode);
         }
+
+        public string StripHtml(string value)
+        {
+            HtmlDocument htmlDoc = new HtmlDocument();
+            htmlDoc.LoadHtml(value);
+            if (htmlDoc == null || !HtmlToggle.IsChecked.Value)
+            {
+                return value;
+            }
+            StringBuilder sanitizedString = new StringBuilder();
+            foreach (var node in htmlDoc.DocumentNode.ChildNodes)
+            {
+                sanitizedString.Append(node.InnerText);
+            }
+            string sanitizedUnescaped = sanitizedString.ToString()
+                                                       .Replace("&gt;", ">")  //these replaces restore characters escaped by above process so they aren't double escaped when later escaped for xml
+                                                       .Replace("&lt;", "<")
+                                                       .Replace("&amp;", "&");
+            return sanitizedUnescaped;
+        }
+
     }
 }
